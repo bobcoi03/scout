@@ -1,0 +1,15 @@
+.env*
+.git
+.next
+.vercel
+node_modules
+
+/coverage
+/data
+/outputs
+/playwright-report
+/test-results
+
+scout.db
+scout.db-shm
+scout.db-wal

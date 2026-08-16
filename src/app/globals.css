@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #eeebe5;
+  --foreground: #181818;
 }
 
 @theme inline {
@@ -12,15 +12,220 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  overflow: hidden;
 }
 
 body {
+  margin: 0;
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+button,
+a {
+  outline-color: #e42313;
+}
+
+::selection {
+  background: #e42313;
+  color: #fff;
+}
+
+[data-testid="x-feed"] {
+  scrollbar-width: none;
+}
+
+[data-testid="x-feed"]::-webkit-scrollbar {
+  display: none;
+}
+
+[data-testid="table-scroll"] {
+  scrollbar-color: rgb(24 24 24 / 42%) transparent;
+  scrollbar-width: thin;
+}
+
+[data-testid="table-scroll"]::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+[data-testid="table-scroll"]::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: rgb(24 24 24 / 38%);
+  background-clip: padding-box;
+}
+
+.data-cell-scroll {
+  scrollbar-color: transparent transparent;
+  scrollbar-width: thin;
+}
+
+.data-cell-scroll:hover {
+  scrollbar-color: rgb(24 24 24 / 28%) transparent;
+}
+
+.data-cell-scroll::-webkit-scrollbar {
+  width: 5px;
+}
+
+.data-cell-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: transparent;
+}
+
+.data-cell-scroll:hover::-webkit-scrollbar-thumb {
+  background: rgb(24 24 24 / 28%);
+}
+
+.tweet-shell .twitter-tweet,
+.tweet-shell .twitter-tweet-rendered {
+  width: 100% !important;
+  max-width: 550px !important;
+  margin: 0 auto !important;
+}
+
+.tweet-shell {
+  position: relative;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+.tweet-shell:not([data-ready="true"]) {
+  min-height: 560px;
+}
+
+.tweet-shell blockquote.twitter-tweet:not(.twitter-tweet-rendered) {
+  height: 560px;
+  max-height: 560px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.tweet-shell[data-ready="true"]:has(.twitter-tweet-rendered) .tweet-skeleton {
+  visibility: hidden;
+  opacity: 0;
+}
+
+.tweet-skeleton {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  left: 50%;
+  width: min(100%, 550px);
+  height: 540px;
+  padding: 22px;
+  transform: translateX(-50%);
+  border: 1px solid rgb(24 24 24 / 16%);
+  border-radius: 14px;
+  background: #e7e3dc;
+  transition: opacity 180ms ease, visibility 180ms ease;
+  animation: tweet-skeleton-pulse 1.25s ease-in-out infinite;
+}
+
+.tweet-skeleton-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tweet-skeleton-head > span {
+  width: 42px;
+  height: 42px;
+  flex: none;
+  border-radius: 50%;
+  background: rgb(24 24 24 / 13%);
+}
+
+.tweet-skeleton-head > div,
+.tweet-skeleton-lines {
+  display: grid;
+  flex: 1;
+  gap: 8px;
+}
+
+.tweet-skeleton i {
+  display: block;
+  height: 10px;
+  border-radius: 99px;
+  background: rgb(24 24 24 / 11%);
+}
+
+.tweet-skeleton-head i:first-child { width: 38%; }
+.tweet-skeleton-head i:last-child { width: 24%; }
+.tweet-skeleton-lines { margin-top: 28px; }
+.tweet-skeleton-lines i:nth-child(1) { width: 92%; }
+.tweet-skeleton-lines i:nth-child(2) { width: 84%; }
+.tweet-skeleton-lines i:nth-child(3) { width: 66%; }
+.tweet-skeleton-lines i:nth-child(4) { width: 48%; }
+
+.tweet-skeleton-media {
+  height: 300px;
+  margin-top: 26px;
+  border-radius: 10px;
+  background: rgb(24 24 24 / 9%);
+}
+
+.tweet-shell iframe {
+  mix-blend-mode: multiply;
+}
+
+/* The X player makes its outer embed iframe the top-level fullscreen element.
+   Blending that composited layer against the fullscreen black backdrop turns
+   the entire video black even though playback is healthy. Keep the paper-like
+   blend in the feed, but render the promoted player normally. */
+.tweet-shell iframe:fullscreen,
+.tweet-shell iframe:-webkit-full-screen {
+  background: #000;
+  mix-blend-mode: normal !important;
+}
+
+.tweet-shell blockquote.twitter-tweet:not(.twitter-tweet-rendered) {
+  min-height: 220px;
+  padding: 24px;
+  border: 1px solid rgb(24 24 24 / 18%);
+  border-radius: 14px;
+  background: #f6f3ed;
+  color: rgb(24 24 24 / 62%);
+  font-size: 14px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+
+.tweet-shell blockquote.twitter-tweet:not(.twitter-tweet-rendered) p {
+  margin: 0 0 20px;
+  color: #181818;
+  font-size: 17px;
+  line-height: 1.55;
+}
+
+.tweet-shell blockquote.twitter-tweet:not(.twitter-tweet-rendered) a {
+  color: #e42313;
+}
+
+@keyframes tweet-skeleton-pulse {
+  0%, 100% { opacity: 0.68; }
+  50% { opacity: 1; }
+}
+
+@keyframes loading {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }
