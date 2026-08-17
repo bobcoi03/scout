@@ -29,7 +29,7 @@ export default function HomePage() {
         <Image src="/x-logo.svg" alt="X" width={1200} height={1227} priority className={styles.xLogo} />
       </h1>
       <div className={styles.heroAction}>
-        <p>Stop doomscrolling. Scout filters the noise so you only see new builders, launches and projects worth following.</p>
+        <p>Stop doomscrolling. Scout filters the noise so Index Ventures can spot emerging builders, launches and projects worth following.</p>
         <Link href="/product" className={styles.feedLink}>
           Open the feed <ArrowUpRight aria-hidden="true" />
         </Link>

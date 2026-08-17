@@ -125,7 +125,7 @@
 }
 
 .hero em {
-  color: var(--red);
+  color: var(--ink);
   font-family: Georgia, "Times New Roman", serif;
   font-weight: 400;
 }
