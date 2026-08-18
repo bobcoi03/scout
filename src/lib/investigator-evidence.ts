@@ -22,6 +22,7 @@ import {
 } from "@/db";
 import { artifactPromptEvidence, assertPublicHttpUrl } from "@/lib/artifact-inspector";
 import { env, xSessionConfigured } from "@/lib/env";
+import { scoutDataPath } from "@/lib/runtime-paths";
 import { getXPostById, getXProfile, getXRecentPosts } from "@/lib/x-session";
 
 const execFileAsync = promisify(execFile);
@@ -317,7 +318,7 @@ type ArchiveStructure = {
 };
 
 async function repositoryArchiveStructure(owner: string, repo: string, branches: string[]): Promise<ArchiveStructure> {
-  const directory = path.resolve(process.cwd(), "data", "investigator-repos");
+  const directory = scoutDataPath("investigator-repos");
   await fs.mkdir(directory, { recursive: true });
   const digest = createHash("sha256").update(`${owner}/${repo}`).digest("hex").slice(0, 16);
   const archivePath = path.join(directory, `${digest}.tar.gz`);
@@ -602,7 +603,7 @@ async function downloadMedia(url: string, destination: string) {
 
 async function mediaEvidence(post: FeedPost): Promise<InvestigatorMediaEvidence> {
   if (!post.mediaUrl) return { kind: "none", sourceUrl: null, durationSeconds: null, framePaths: [], unavailableReason: null };
-  const directory = path.resolve(process.cwd(), "data", "investigator-media", post.id);
+  const directory = scoutDataPath("investigator-media", post.id);
   try {
     await fs.mkdir(directory, { recursive: true });
     const cachedFrames = (await fs.readdir(directory).catch(() => []))
@@ -752,43 +753,47 @@ export async function captureMissingSiteScreenshots(packets: InvestigationPacket
     .filter(({ site }) => !site.screenshotPath && !site.unavailableReason);
   if (!pending.length) return 0;
   let captured = 0;
-  const { chromium } = await import("@playwright/test");
-  const browser = await chromium.launch({ headless: true });
   try {
-    for (const { packet, site } of pending) {
-      const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: "block" });
-      await context.route("**/*", async (route) => {
-        const requestUrl = route.request().url();
-        if (route.request().resourceType() === "font") return route.abort("blockedbyclient");
-        if (/^(?:data|blob):/.test(requestUrl)) return route.continue();
+    const { chromium } = await import("@playwright/test");
+    const browser = await chromium.launch({ headless: true });
+    try {
+      for (const { packet, site } of pending) {
+        const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: "block" });
+        await context.route("**/*", async (route) => {
+          const requestUrl = route.request().url();
+          if (route.request().resourceType() === "font") return route.abort("blockedbyclient");
+          if (/^(?:data|blob):/.test(requestUrl)) return route.continue();
+          try {
+            await assertPublicHttpUrl(requestUrl);
+            return route.continue();
+          } catch {
+            return route.abort("blockedbyclient");
+          }
+        });
         try {
-          await assertPublicHttpUrl(requestUrl);
-          return route.continue();
-        } catch {
-          return route.abort("blockedbyclient");
+          const page = await context.newPage();
+          await page.goto(site.url, { waitUntil: "domcontentloaded", timeout: 18_000 });
+          await page.waitForTimeout(800);
+          const directory = scoutDataPath("investigator-sites");
+          await fs.mkdir(directory, { recursive: true });
+          const digest = createHash("sha256").update(site.url).digest("hex").slice(0, 16);
+          const screenshotPath = path.join(directory, `${digest}.jpg`);
+          await page.screenshot({ path: screenshotPath, type: "jpeg", quality: 72, fullPage: false });
+          site.screenshotPath = screenshotPath;
+          packet.builtAt = Date.now();
+          saveInvestigationPackets([packet]);
+          captured += 1;
+        } catch (error) {
+          site.unavailableReason = site.unavailableReason ?? `Screenshot failed: ${error instanceof Error ? error.message.slice(0, 200) : String(error)}`;
+        } finally {
+          await context.close();
         }
-      });
-      try {
-        const page = await context.newPage();
-        await page.goto(site.url, { waitUntil: "domcontentloaded", timeout: 18_000 });
-        await page.waitForTimeout(800);
-        const directory = path.resolve(process.cwd(), "data", "investigator-sites");
-        await fs.mkdir(directory, { recursive: true });
-        const digest = createHash("sha256").update(site.url).digest("hex").slice(0, 16);
-        const screenshotPath = path.join(directory, `${digest}.jpg`);
-        await page.screenshot({ path: screenshotPath, type: "jpeg", quality: 72, fullPage: false });
-        site.screenshotPath = screenshotPath;
-        packet.builtAt = Date.now();
-        saveInvestigationPackets([packet]);
-        captured += 1;
-      } catch (error) {
-        site.unavailableReason = site.unavailableReason ?? `Screenshot failed: ${error instanceof Error ? error.message.slice(0, 200) : String(error)}`;
-      } finally {
-        await context.close();
       }
+    } finally {
+      await browser.close();
     }
-  } finally {
-    await browser.close();
+  } catch (error) {
+    console.warn(`Investigator visual capture unavailable; continuing with page evidence: ${error instanceof Error ? error.message : String(error)}`);
   }
   return captured;
 }

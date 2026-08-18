@@ -8,6 +8,9 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "video.twimg.com", pathname: "/**" },
     ],
   },
+  outputFileTracingExcludes: {
+    "/api/cron/ingest": ["./data/**/*", "./outputs/**/*"],
+  },
   turbopack: {
     root: process.cwd(),
   },

@@ -13,3 +13,21 @@ test("removed operational routes no longer exist", async ({ page }) => {
     expect(response?.status()).toBe(404);
   }
 });
+
+test("themes use a routed, cross-filterable analytics workspace", async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.goto("/product");
+  await expect(page.getByRole("link", { name: "Themes" })).toHaveAttribute("href", "/product/theme");
+  await page.goto("/product/theme");
+
+  await expect(page).toHaveURL(/\/product\/theme$/);
+  await expect(page.getByTestId("intelligence-theme-workbench")).toBeVisible();
+  await expect(page.getByRole("img", { name: "Launches by theme and week" })).toBeVisible();
+
+  await page.getByPlaceholder("Filter by builder").fill("Claude");
+  await page.getByRole("button", { name: /Claude.*signals/i }).first().click();
+  await expect(page.getByLabel("Selected builders")).toContainText("Claude");
+
+  await page.getByRole("button", { name: "Conviction", exact: true }).click();
+  await expect(page.getByRole("img", { name: "Conviction by theme and week" })).toBeVisible();
+});

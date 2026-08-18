@@ -279,14 +279,22 @@ export function feedPostContentHash(post: Pick<FeedPost, "username" | "text" | "
   return createHash("sha256").update(`${post.username}\n${post.url}\n${post.text}`).digest("hex");
 }
 
-const databasePath = path.resolve(/* turbopackIgnore: true */ process.cwd(), process.env.SCOUT_DB_PATH ?? "./data/scout.db");
-fs.mkdirSync(path.dirname(databasePath), { recursive: true });
+const globalForDb = globalThis as unknown as {
+  scoutFeedSqlite?: Database.Database;
+  scoutFeedSqlitePath?: string;
+};
 
-const globalForDb = globalThis as unknown as { scoutFeedSqlite?: Database.Database };
-const sqlite = globalForDb.scoutFeedSqlite ?? new Database(databasePath);
-sqlite.pragma("journal_mode = WAL");
-sqlite.pragma("busy_timeout = 5000");
-sqlite.exec(`
+let sqliteInstance: Database.Database | null = null;
+let sqliteInstancePath: string | null = null;
+
+function configuredDatabasePath() {
+  return path.resolve(/* turbopackIgnore: true */ process.cwd(), process.env.SCOUT_DB_PATH ?? "./data/scout.db");
+}
+
+function initializeDatabase(database: Database.Database) {
+  database.pragma("journal_mode = WAL");
+  database.pragma("busy_timeout = 5000");
+  database.exec(`
   CREATE TABLE IF NOT EXISTS x_feed_posts (
     id TEXT PRIMARY KEY,
     category TEXT NOT NULL,
@@ -403,27 +411,75 @@ sqlite.exec(`
     error TEXT
   );
 `);
-const postColumns = sqlite.prepare("PRAGMA table_info(x_feed_posts)").all() as Array<{ name: string }>;
-if (!postColumns.some((column) => column.name === "media_url")) sqlite.exec("ALTER TABLE x_feed_posts ADD COLUMN media_url TEXT");
-if (!postColumns.some((column) => column.name === "external_urls_json")) sqlite.exec("ALTER TABLE x_feed_posts ADD COLUMN external_urls_json TEXT NOT NULL DEFAULT '[]'");
-if (!postColumns.some((column) => column.name === "content_hash")) sqlite.exec("ALTER TABLE x_feed_posts ADD COLUMN content_hash TEXT");
-const analysisColumns = sqlite.prepare("PRAGMA table_info(post_analysis)").all() as Array<{ name: string }>;
-if (!analysisColumns.some((column) => column.name === "project_url")) sqlite.exec("ALTER TABLE post_analysis ADD COLUMN project_url TEXT");
-if (!analysisColumns.some((column) => column.name === "description")) sqlite.exec("ALTER TABLE post_analysis ADD COLUMN description TEXT");
-const scanColumns = sqlite.prepare("PRAGMA table_info(x_feed_scans)").all() as Array<{ name: string }>;
-if (!scanColumns.some((column) => column.name === "scan_day")) sqlite.exec("ALTER TABLE x_feed_scans ADD COLUMN scan_day TEXT");
-if (!scanColumns.some((column) => column.name === "analysis_version")) sqlite.exec("ALTER TABLE x_feed_scans ADD COLUMN analysis_version INTEGER");
-if (!scanColumns.some((column) => column.name === "investigator_version")) sqlite.exec("ALTER TABLE x_feed_scans ADD COLUMN investigator_version INTEGER");
+  const postColumns = database.prepare("PRAGMA table_info(x_feed_posts)").all() as Array<{ name: string }>;
+  if (!postColumns.some((column) => column.name === "media_url")) database.exec("ALTER TABLE x_feed_posts ADD COLUMN media_url TEXT");
+  if (!postColumns.some((column) => column.name === "external_urls_json")) database.exec("ALTER TABLE x_feed_posts ADD COLUMN external_urls_json TEXT NOT NULL DEFAULT '[]'");
+  if (!postColumns.some((column) => column.name === "content_hash")) database.exec("ALTER TABLE x_feed_posts ADD COLUMN content_hash TEXT");
+  const analysisColumns = database.prepare("PRAGMA table_info(post_analysis)").all() as Array<{ name: string }>;
+  if (!analysisColumns.some((column) => column.name === "project_url")) database.exec("ALTER TABLE post_analysis ADD COLUMN project_url TEXT");
+  if (!analysisColumns.some((column) => column.name === "description")) database.exec("ALTER TABLE post_analysis ADD COLUMN description TEXT");
+  const scanColumns = database.prepare("PRAGMA table_info(x_feed_scans)").all() as Array<{ name: string }>;
+  if (!scanColumns.some((column) => column.name === "scan_day")) database.exec("ALTER TABLE x_feed_scans ADD COLUMN scan_day TEXT");
+  if (!scanColumns.some((column) => column.name === "analysis_version")) database.exec("ALTER TABLE x_feed_scans ADD COLUMN analysis_version INTEGER");
+  if (!scanColumns.some((column) => column.name === "investigator_version")) database.exec("ALTER TABLE x_feed_scans ADD COLUMN investigator_version INTEGER");
 
-const unhashedRows = sqlite.prepare("SELECT id, username, url, text FROM x_feed_posts WHERE content_hash IS NULL").all() as Array<{ id: string; username: string; url: string; text: string }>;
-if (unhashedRows.length) {
-  const setHash = sqlite.prepare("UPDATE x_feed_posts SET content_hash = ? WHERE id = ?");
-  sqlite.transaction(() => {
-    for (const row of unhashedRows) setHash.run(feedPostContentHash(row), row.id);
-  })();
+  const unhashedRows = database.prepare("SELECT id, username, url, text FROM x_feed_posts WHERE content_hash IS NULL").all() as Array<{ id: string; username: string; url: string; text: string }>;
+  if (unhashedRows.length) {
+    const setHash = database.prepare("UPDATE x_feed_posts SET content_hash = ? WHERE id = ?");
+    database.transaction(() => {
+      for (const row of unhashedRows) setHash.run(feedPostContentHash(row), row.id);
+    })();
+  }
 }
 
-if (process.env.NODE_ENV !== "production") globalForDb.scoutFeedSqlite = sqlite;
+function getSqlite() {
+  const databasePath = configuredDatabasePath();
+  if (sqliteInstance && sqliteInstance.open && sqliteInstancePath === databasePath) return sqliteInstance;
+
+  if (sqliteInstance?.open) sqliteInstance.close();
+  const reusable = process.env.NODE_ENV !== "production"
+    && globalForDb.scoutFeedSqlite?.open
+    && globalForDb.scoutFeedSqlitePath === databasePath
+    ? globalForDb.scoutFeedSqlite
+    : null;
+
+  fs.mkdirSync(path.dirname(databasePath), { recursive: true });
+  sqliteInstance = reusable ?? new Database(databasePath);
+  sqliteInstancePath = databasePath;
+  initializeDatabase(sqliteInstance);
+
+  if (process.env.NODE_ENV !== "production") {
+    globalForDb.scoutFeedSqlite = sqliteInstance;
+    globalForDb.scoutFeedSqlitePath = databasePath;
+  }
+  return sqliteInstance;
+}
+
+const sqlite = new Proxy({} as Database.Database, {
+  get(_target, property) {
+    const database = getSqlite();
+    const value = Reflect.get(database, property, database);
+    return typeof value === "function" ? value.bind(database) : value;
+  },
+});
+
+export function checkpointDatabase() {
+  if (!sqliteInstance?.open) return;
+  sqliteInstance.pragma("wal_checkpoint(TRUNCATE)");
+}
+
+export function closeDatabase() {
+  if (!sqliteInstance?.open) return;
+  checkpointDatabase();
+  const closed = sqliteInstance;
+  closed.close();
+  sqliteInstance = null;
+  sqliteInstancePath = null;
+  if (globalForDb.scoutFeedSqlite === closed) {
+    delete globalForDb.scoutFeedSqlite;
+    delete globalForDb.scoutFeedSqlitePath;
+  }
+}
 
 function parseStringArray(value: unknown) {
   try {

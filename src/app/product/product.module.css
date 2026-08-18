@@ -24,7 +24,7 @@
 .headerBrand,
 .headerActions,
 .viewTabs,
-.viewTabs button,
+.viewTabs a,
 .headerActions a,
 .projectHeading,
 .builderRow,
@@ -49,8 +49,8 @@
 .headerBrand > div:last-child span { margin-top: 5px; color: rgb(238 235 229 / 64%); font-size: 9px; letter-spacing: .13em; text-transform: uppercase; }
 
 .viewTabs { justify-self: center; padding: 3px; border: 1px solid rgb(238 235 229 / 18%); border-radius: 7px; }
-.viewTabs button { height: 34px; padding: 0 14px; gap: 7px; border: 0; border-radius: 4px; background: transparent; color: rgb(238 235 229 / 74%); cursor: pointer; font: inherit; font-size: 13px; }
-.viewTabs button svg { width: 13px; height: 13px; }
+.viewTabs a { height: 34px; padding: 0 14px; gap: 7px; border: 0; border-radius: 4px; background: transparent; color: rgb(238 235 229 / 74%); cursor: pointer; font: inherit; font-size: 13px; text-decoration: none; }
+.viewTabs a svg { width: 13px; height: 13px; }
 .viewTabs .activeViewTab { background: rgb(238 235 229 / 12%); color: var(--paper); }
 
 .headerActions { min-width: 0; padding-right: 22px; justify-self: end; gap: 18px; color: rgb(238 235 229 / 70%); font-family: var(--font-geist-mono); font-size: 11px; }
@@ -88,7 +88,7 @@
 
 .sidebarLabel { padding: 0 9px 8px; }
 .sidebarList { display: grid; gap: 2px; }
-.sidebarList button {
+.sidebarList :is(button, a) {
   display: flex;
   width: 100%;
   min-height: 36px;
@@ -104,11 +104,12 @@
   font: inherit;
   font-size: 14px;
   text-align: left;
+  text-decoration: none;
 }
-.sidebarList button:hover { background: rgb(23 23 23 / 5%); color: var(--ink); }
+.sidebarList :is(button, a):hover { background: rgb(23 23 23 / 5%); color: var(--ink); }
 .sidebarList .activeSidebarItem { background: var(--ink); color: var(--paper); }
-.sidebarList button > span { display: flex; min-width: 0; align-items: center; gap: 8px; }
-.sidebarList button > span i { width: 6px; height: 6px; flex: none; border-radius: 50%; }
+.sidebarList :is(button, a) > span { display: flex; min-width: 0; align-items: center; gap: 8px; }
+.sidebarList :is(button, a) > span i { width: 6px; height: 6px; flex: none; border-radius: 50%; }
 .sidebarList small { color: inherit; font-family: var(--font-geist-mono); font-size: 11px; opacity: .76; }
 
 .sidebarCoverage { margin-top: auto; }
@@ -272,10 +273,159 @@
 .themeLeaders button span { overflow: hidden; text-overflow: ellipsis; text-transform: capitalize; white-space: nowrap; }
 .themeLeaders button strong { flex: none; font-family: var(--font-geist-mono); font-size: 11px; }
 
+.themeWorkbench {
+  min-height: 0;
+  padding: 12px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.themeFilters {
+  position: sticky;
+  z-index: 30;
+  top: -12px;
+  display: grid;
+  min-height: 74px;
+  padding: 11px 12px;
+  grid-template-columns: minmax(188px, 1fr) auto minmax(150px, .65fr) minmax(170px, .8fr) minmax(190px, .9fr) auto;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--line);
+  background: rgb(238 235 229 / 96%);
+  box-shadow: 0 8px 24px rgb(23 23 23 / 5%);
+  backdrop-filter: blur(14px);
+}
+
+.filterLead { display: flex; min-width: 0; align-items: center; gap: 10px; }
+.filterLead > svg { width: 17px; height: 17px; flex: none; color: var(--red); }
+.filterLead > div { display: flex; min-width: 0; flex-direction: column; }
+.filterLead strong { font-size: 12px; }
+.filterLead span { margin-top: 3px; overflow: hidden; color: rgb(23 23 23 / 58%); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+
+.windowTabs,
+.metricTabs { display: flex; padding: 3px; gap: 2px; border: 1px solid rgb(23 23 23 / 15%); border-radius: 6px; }
+.windowTabs button,
+.metricTabs button { height: 31px; padding: 0 9px; border: 0; border-radius: 4px; background: transparent; color: rgb(23 23 23 / 68%); cursor: pointer; font: inherit; font-size: 10px; font-weight: 650; }
+.windowTabs .activeFilter,
+.metricTabs .activeMetric { background: var(--ink); color: var(--paper); }
+
+.sourceSelect,
+.scoreFilter { position: relative; display: flex; min-width: 0; flex-direction: column; gap: 5px; color: rgb(23 23 23 / 58%); font-size: 9px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.sourceSelect select { width: 100%; height: 32px; padding: 0 28px 0 8px; appearance: none; border: 1px solid rgb(23 23 23 / 16%); border-radius: 5px; outline: 0; background: rgb(255 255 255 / 30%); color: var(--ink); font: inherit; font-size: 11px; letter-spacing: 0; text-transform: none; }
+.sourceSelect svg { position: absolute; right: 8px; bottom: 9px; width: 12px; height: 12px; pointer-events: none; }
+.scoreFilter > span { display: flex; justify-content: space-between; gap: 8px; }
+.scoreFilter > span strong { color: var(--ink); font-family: var(--font-geist-mono); font-size: 9px; }
+.scoreFilter input { width: 100%; accent-color: var(--red); }
+
+.peoplePicker { position: relative; min-width: 0; }
+.peoplePicker > label,
+.peopleTableSearch { display: flex; height: 36px; padding: 0 9px; align-items: center; gap: 7px; border: 1px solid rgb(23 23 23 / 16%); border-radius: 5px; background: rgb(255 255 255 / 30%); }
+.peoplePicker label svg,
+.peopleTableSearch svg { width: 14px; height: 14px; flex: none; color: rgb(23 23 23 / 58%); }
+.peoplePicker input,
+.peopleTableSearch input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--ink); font: inherit; font-size: 11px; }
+.peopleMatches { position: absolute; z-index: 50; top: calc(100% + 7px); right: 0; width: min(390px, 72vw); max-height: 330px; padding: 5px; overflow-y: auto; border: 1px solid rgb(23 23 23 / 18%); border-radius: 7px; background: #f5f2ec; box-shadow: 0 18px 40px rgb(23 23 23 / 17%); }
+.peopleMatches button { display: flex; width: 100%; min-height: 56px; padding: 8px; align-items: center; justify-content: space-between; gap: 12px; border: 0; border-bottom: 1px solid rgb(23 23 23 / 9%); background: transparent; color: var(--ink); cursor: pointer; font: inherit; text-align: left; }
+.peopleMatches button:hover { border-radius: 4px; background: #e7e3dc; }
+.peopleMatches button > span { display: flex; min-width: 0; flex-direction: column; }
+.peopleMatches button strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.peopleMatches button small { margin-top: 3px; overflow: hidden; color: rgb(23 23 23 / 58%); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.peopleMatches button b { font-family: var(--font-geist-mono); font-size: 10px; }
+.peopleMatches p { margin: 0; padding: 16px 8px; color: rgb(23 23 23 / 62%); font-size: 11px; text-align: center; }
+
+.clearFilters { height: 34px; padding: 0 10px; border: 1px solid rgb(23 23 23 / 18%); border-radius: 5px; background: transparent; color: var(--ink); cursor: pointer; font: inherit; font-size: 10px; white-space: nowrap; }
+.clearFilters:disabled { cursor: default; opacity: .38; }
+.selectedPeople { display: flex; min-height: 42px; padding: 8px 4px 0; align-items: center; gap: 6px; overflow-x: auto; }
+.selectedPeople > span { margin: 0 5px; color: rgb(23 23 23 / 58%); font-size: 9px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.selectedPeople button { display: inline-flex; height: 27px; padding: 0 8px; align-items: center; gap: 6px; border: 1px solid rgb(23 23 23 / 18%); border-radius: 999px; background: var(--ink); color: var(--paper); cursor: pointer; font: inherit; font-size: 10px; white-space: nowrap; }
+.selectedPeople svg { width: 11px; height: 11px; }
+
+.themeStats { display: grid; margin-top: 10px; grid-template-columns: repeat(5, minmax(0, 1fr)); border: 1px solid var(--line); background: rgb(255 255 255 / 24%); }
+.themeStats > div { display: flex; min-width: 0; min-height: 88px; padding: 13px 15px; flex-direction: column; border-right: 1px solid var(--line); }
+.themeStats > div:last-child { border-right: 0; }
+.themeStats span { color: rgb(23 23 23 / 58%); font-size: 9px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.themeStats strong { margin-top: 8px; overflow: hidden; font-family: Georgia, serif; font-size: 25px; font-weight: 400; line-height: 1; text-overflow: ellipsis; white-space: nowrap; }
+.themeStats small { margin-top: 6px; color: rgb(23 23 23 / 58%); font-size: 9px; }
+
+.analyticsGrid { display: grid; margin-top: 10px; padding-bottom: 28px; grid-template-columns: minmax(0, 1.65fr) minmax(320px, .85fr); gap: 10px; }
+.analyticsCard { min-width: 0; overflow: hidden; border: 1px solid var(--line); background: rgb(255 255 255 / 29%); }
+.analyticsHeader { display: flex; min-height: 68px; padding: 13px 15px; align-items: center; justify-content: space-between; gap: 18px; border-bottom: 1px solid var(--line); }
+.analyticsHeader > div:first-child { display: flex; min-width: 0; flex-direction: column; }
+.analyticsHeader > div:first-child > span { color: rgb(23 23 23 / 56%); font-size: 9px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.analyticsHeader h2 { margin: 5px 0 0; overflow: hidden; font-family: Georgia, serif; font-size: 20px; font-weight: 400; letter-spacing: -.02em; text-overflow: ellipsis; white-space: nowrap; }
+.analyticsHeader > a { display: inline-flex; align-items: center; gap: 5px; color: var(--red); font-size: 10px; font-weight: 700; text-decoration: none; white-space: nowrap; }
+.analyticsHeader > a svg { width: 12px; height: 12px; }
+.analyticsHeader > p { margin: 0; color: rgb(23 23 23 / 52%); font-size: 9px; }
+.analyticsHeader > strong { font-family: Georgia, serif; font-size: 25px; font-weight: 400; }
+
+.themeLegend { display: flex; padding: 9px 14px 0; flex-wrap: wrap; gap: 5px 13px; }
+.themeLegend button { display: inline-flex; padding: 0; align-items: center; gap: 5px; border: 0; background: transparent; color: rgb(23 23 23 / 72%); cursor: pointer; font: inherit; font-size: 9px; }
+.themeLegend i { width: 6px; height: 6px; border-radius: 50%; }
+.themeLegend .mutedLegend { opacity: .34; }
+.velocityChart { position: relative; min-height: 270px; padding: 3px 8px 8px; }
+.velocityChart svg { display: block; width: 100%; height: 260px; overflow: visible; }
+.velocityChart svg text,
+.scatterChart svg text { fill: rgb(23 23 23 / 52%); font-family: var(--font-geist-mono); font-size: 8px; }
+.chartGridLine { stroke: rgb(23 23 23 / 10%); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.chartCrosshair { stroke: rgb(23 23 23 / 42%); stroke-dasharray: 3 3; stroke-width: 1; vector-effect: non-scaling-stroke; }
+.chartTooltip { position: absolute; z-index: 10; top: 16px; display: flex; width: 190px; padding: 9px; flex-direction: column; transform: translateX(-50%); border: 1px solid rgb(23 23 23 / 18%); border-radius: 5px; background: #f4f1eb; box-shadow: 0 10px 28px rgb(23 23 23 / 13%); pointer-events: none; }
+.chartTooltip > strong { margin-bottom: 5px; font-size: 9px; }
+.chartTooltip > span { display: grid; min-height: 21px; grid-template-columns: 7px minmax(0, 1fr) auto; align-items: center; gap: 6px; color: rgb(23 23 23 / 72%); font-size: 8px; }
+.chartTooltip > span i { width: 6px; height: 6px; border-radius: 50%; }
+.chartTooltip > span b { color: var(--ink); font-family: var(--font-geist-mono); }
+
+.compositionBars { padding: 7px 14px 14px; }
+.compositionBars > button { display: grid; width: 100%; min-height: 65px; padding: 9px 0; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 5px 12px; border: 0; border-bottom: 1px solid rgb(23 23 23 / 9%); background: transparent; color: var(--ink); cursor: pointer; font: inherit; text-align: left; }
+.compositionBars > button:hover { background: rgb(255 255 255 / 34%); }
+.compositionBars > button > span { display: flex; min-width: 0; align-items: center; gap: 7px; font-size: 11px; }
+.compositionBars > button > span > i { width: 6px; height: 6px; flex: none; border-radius: 50%; }
+.compositionBars > button > span small { margin-left: auto; color: rgb(23 23 23 / 50%); font-size: 8px; }
+.compositionBars > button > strong { font-family: Georgia, serif; font-size: 18px; font-weight: 400; }
+.compositionBars > button > em { display: block; height: 3px; overflow: hidden; background: rgb(23 23 23 / 8%); }
+.compositionBars > button > em i { display: block; height: 100%; min-width: 1px; }
+.compositionBars > button > small { color: rgb(23 23 23 / 52%); font-size: 8px; text-align: right; }
+.compositionBars .activeComposition { box-shadow: inset 3px 0 var(--ink); }
+
+.scatterChart { position: relative; min-height: 280px; padding: 4px 8px 8px; }
+.scatterChart svg { display: block; width: 100%; height: 280px; }
+.scatterChart circle { cursor: pointer; transition: opacity 120ms ease, stroke-width 120ms ease; }
+.scatterChart circle:hover,
+.scatterChart circle:focus { opacity: 1; outline: none; stroke: var(--ink); stroke-width: 2px; }
+.scatterChart .axisTitle { font-size: 8px; letter-spacing: .04em; text-transform: uppercase; }
+.scatterTooltip { position: absolute; top: 12px; right: 15px; display: grid; min-width: 250px; padding: 8px 10px; grid-template-columns: 7px minmax(90px, 1fr) auto auto; align-items: center; gap: 8px; border: 1px solid rgb(23 23 23 / 17%); border-radius: 5px; background: #f4f1eb; box-shadow: 0 8px 24px rgb(23 23 23 / 10%); pointer-events: none; }
+.scatterTooltip > i { width: 7px; height: 7px; border-radius: 50%; }
+.scatterTooltip > span,
+.scatterTooltip > b { display: flex; flex-direction: column; }
+.scatterTooltip > span strong { overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.scatterTooltip small { margin-top: 2px; color: rgb(23 23 23 / 52%); font-size: 7px; font-weight: 400; text-transform: uppercase; }
+.scatterTooltip > b { font-family: var(--font-geist-mono); font-size: 9px; }
+
+.peopleCard { min-height: 360px; }
+.peopleTableSearch { margin: 10px 12px 4px; background: transparent; }
+.peopleTable { padding: 0 12px 12px; }
+.peopleTable > button { display: grid; width: 100%; min-height: 57px; padding: 7px 4px; grid-template-columns: minmax(135px, 1.1fr) minmax(100px, .9fr) 48px 58px 24px; align-items: center; gap: 8px; border: 0; border-bottom: 1px solid rgb(23 23 23 / 9%); background: transparent; color: var(--ink); cursor: pointer; font: inherit; text-align: left; }
+.peopleTable > button:hover { background: rgb(255 255 255 / 38%); }
+.peopleTable .activePersonRow { background: #fff8ed; box-shadow: inset 3px 0 var(--red); }
+.personIdentity { display: flex; min-width: 0; align-items: center; gap: 8px; }
+.personIdentity > i { display: grid; width: 27px; height: 27px; flex: none; place-items: center; border-radius: 50%; color: white; font-size: 9px; font-style: normal; font-weight: 750; }
+.personIdentity > span { display: flex; min-width: 0; flex-direction: column; }
+.personIdentity strong,
+.personProjects { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.personIdentity strong { font-size: 10px; }
+.personIdentity small { margin-top: 3px; color: rgb(23 23 23 / 54%); font-size: 8px; }
+.personProjects { color: rgb(23 23 23 / 60%); font-size: 8px; text-transform: capitalize; }
+.personMetric { display: flex; flex-direction: column; text-align: right; }
+.personMetric strong { font-family: var(--font-geist-mono); font-size: 9px; }
+.personMetric small { margin-top: 2px; color: rgb(23 23 23 / 48%); font-size: 7px; text-transform: uppercase; }
+.peopleTable > button > a { display: grid; width: 24px; height: 24px; place-items: center; color: rgb(23 23 23 / 55%); }
+.peopleTable > button > a:hover { color: var(--red); }
+.peopleTable > button > a svg { width: 12px; height: 12px; }
+
 .sidebar,
 .signalInbox,
 .evidenceCanvas,
 .themeGrid,
+.themeWorkbench,
 .searchDropdown {
   scrollbar-color: rgb(23 23 23 / 34%) transparent;
   scrollbar-width: thin;
@@ -284,16 +434,19 @@
 .signalInbox::-webkit-scrollbar,
 .evidenceCanvas::-webkit-scrollbar,
 .themeGrid::-webkit-scrollbar,
+.themeWorkbench::-webkit-scrollbar,
 .searchDropdown::-webkit-scrollbar { width: 10px; height: 10px; }
 .sidebar::-webkit-scrollbar-track,
 .signalInbox::-webkit-scrollbar-track,
 .evidenceCanvas::-webkit-scrollbar-track,
 .themeGrid::-webkit-scrollbar-track,
+.themeWorkbench::-webkit-scrollbar-track,
 .searchDropdown::-webkit-scrollbar-track { background: transparent; }
 .sidebar::-webkit-scrollbar-thumb,
 .signalInbox::-webkit-scrollbar-thumb,
 .evidenceCanvas::-webkit-scrollbar-thumb,
 .themeGrid::-webkit-scrollbar-thumb,
+.themeWorkbench::-webkit-scrollbar-thumb,
 .searchDropdown::-webkit-scrollbar-thumb {
   border: 3px solid transparent;
   border-radius: 999px;
@@ -304,6 +457,7 @@
 .signalInbox::-webkit-scrollbar-thumb:hover,
 .evidenceCanvas::-webkit-scrollbar-thumb:hover,
 .themeGrid::-webkit-scrollbar-thumb:hover,
+.themeWorkbench::-webkit-scrollbar-thumb:hover,
 .searchDropdown::-webkit-scrollbar-thumb:hover {
   background: rgb(23 23 23 / 52%);
   background-clip: padding-box;
@@ -316,6 +470,10 @@
   .inboxWorkspace { grid-template-columns: 44% 56%; }
   .evidenceHeader { padding-right: 24px; padding-left: 24px; }
   .tweetEvidence { padding-right: 20px; padding-left: 20px; }
+  .themeFilters { position: static; grid-template-columns: minmax(180px, 1fr) auto minmax(150px, .8fr); }
+  .analyticsGrid { grid-template-columns: minmax(0, 1.35fr) minmax(300px, .85fr); }
+  .peopleTable > button { grid-template-columns: minmax(110px, 1fr) 44px 55px 22px; }
+  .personProjects { display: none; }
 }
 
 @media (max-width: 920px) {
@@ -324,6 +482,10 @@
   .headerDivider,
   .headerBrand > div:last-child { display: none; }
   .workspace { grid-template-columns: 180px minmax(0, 1fr); }
+  .analyticsGrid { grid-template-columns: 1fr; }
+  .themeStats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .themeStats > div:nth-child(3) { border-right: 0; }
+  .themeStats > div:nth-child(n+4) { border-top: 1px solid var(--line); }
 }
 
 @media (max-width: 720px) {
@@ -338,7 +500,7 @@
   .sidebar .sidebarCoverage,
   .sidebarLabel { display: none; }
   .sidebarList { display: flex; gap: 4px; }
-  .sidebarList button { width: auto; min-height: 34px; padding: 0 10px; border: 1px solid rgb(23 23 23 / 12%); }
+  .sidebarList :is(button, a) { width: auto; min-height: 34px; padding: 0 10px; border: 1px solid rgb(23 23 23 / 12%); }
   .mainPanel { height: calc(100dvh - 110px); min-height: 650px; }
   .panelHeader { min-height: 118px; padding: 14px 12px 12px; align-items: stretch; flex-direction: column; justify-content: center; gap: 11px; }
   .panelHeader > div:first-child { width: 100%; }
@@ -383,6 +545,27 @@
   .sourceTopline { padding: 0 4px; }
   .postActivity { padding: 0 5px; gap: 14px; }
   .themeGrid { grid-template-columns: 1fr; }
+  .themeWorkbench { padding: 8px; }
+  .themeFilters { padding: 10px; grid-template-columns: 1fr 1fr; }
+  .filterLead { grid-column: 1 / -1; }
+  .windowTabs { justify-content: stretch; }
+  .windowTabs button { flex: 1; }
+  .peoplePicker { grid-column: 1 / -1; }
+  .clearFilters { grid-column: 1 / -1; }
+  .themeStats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .themeStats > div { min-height: 78px; }
+  .themeStats > div:nth-child(2n) { border-right: 0; }
+  .themeStats > div:nth-child(n+3) { border-top: 1px solid var(--line); }
+  .themeStats > div:last-child { grid-column: 1 / -1; }
+  .analyticsHeader h2 { font-size: 18px; }
+  .metricTabs button { padding: 0 7px; }
+  .themeLegend { gap: 7px 11px; }
+  .velocityChart { overflow-x: auto; }
+  .velocityChart svg { min-width: 650px; }
+  .scatterChart svg { min-width: 580px; }
+  .scatterChart { overflow-x: auto; }
+  .scatterTooltip { position: sticky; left: 8px; width: 250px; }
+  .peopleTable > button { grid-template-columns: minmax(130px, 1fr) 42px 55px 22px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

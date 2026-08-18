@@ -3,13 +3,17 @@
 import {
   ArrowLeft,
   ArrowUpRight,
+  ChevronDown,
   ExternalLink,
   Heart,
   Layers3,
   MessageCircle,
   Repeat2,
   Search,
+  SlidersHorizontal,
   Table2,
+  Users,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 import Script from "next/script";
@@ -39,12 +43,12 @@ export type IntelligenceSignal = {
   views: number;
 };
 
-type ThemeName = "Agent stack" | "Developer tools" | "Creative systems" | "Robotics & spatial" | "Financial infrastructure" | "Consumer & work";
+export type ThemeName = "Agent stack" | "Developer tools" | "Creative systems" | "Robotics & spatial" | "Financial infrastructure" | "Consumer & work";
 type SortMode = "Latest" | "Conviction";
 type ViewMode = "Signals" | "Themes";
 type SavedView = "All signals" | "Latest day" | "High conviction" | "Open source";
 
-const themeOrder: ThemeName[] = [
+export const themeOrder: ThemeName[] = [
   "Agent stack",
   "Developer tools",
   "Creative systems",
@@ -132,16 +136,342 @@ function hasVideo(signal: IntelligenceSignal) {
   return Boolean(signal.mediaUrl && /(?:video_thumb|video\.twimg\.com)/i.test(signal.mediaUrl));
 }
 
-function deltaLabel(current: number, previous: number) {
-  const delta = current - previous;
-  if (delta === 0) return "No change";
-  return `${delta > 0 ? "+" : ""}${delta} vs prior 7d`;
+type ThemedSignal = IntelligenceSignal & { theme: ThemeName };
+type ThemeMetric = "Launches" | "Conviction";
+type ThemeWindow = "All" | "30d" | "60d" | "90d";
+type SourceFilter = "All sources" | "New releases" | "Open source" | "Product demos" | "New founders";
+
+type PersonSummary = {
+  username: string;
+  name: string;
+  signals: number;
+  projects: string[];
+  themes: ThemeName[];
+  dominantTheme: ThemeName;
+  averageScore: number;
+  maxScore: number;
+  totalViews: number;
+  latestDate: number;
+};
+
+const DAY = 86_400_000;
+const chartWidth = 920;
+const chartHeight = 250;
+const chartPadding = { top: 20, right: 18, bottom: 32, left: 42 };
+
+function startOfUtcWeek(value: number) {
+  const date = new Date(value);
+  const weekday = (date.getUTCDay() + 6) % 7;
+  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() - weekday);
 }
 
-export function ProductIntelligence({ signals, from, to }: { signals: IntelligenceSignal[]; from: string; to: string }) {
-  const [viewMode, setViewMode] = useState<ViewMode>("Signals");
+function aggregatePeople(signals: ThemedSignal[]): PersonSummary[] {
+  const people = new Map<string, {
+    username: string;
+    name: string;
+    signals: number;
+    projects: Set<string>;
+    themes: Map<ThemeName, number>;
+    scoreTotal: number;
+    maxScore: number;
+    totalViews: number;
+    latestDate: number;
+  }>();
+
+  for (const signal of signals) {
+    const key = signal.username.toLowerCase();
+    const person = people.get(key) ?? {
+      username: signal.username,
+      name: signal.builderName || signal.username,
+      signals: 0,
+      projects: new Set<string>(),
+      themes: new Map<ThemeName, number>(),
+      scoreTotal: 0,
+      maxScore: 0,
+      totalViews: 0,
+      latestDate: 0,
+    };
+    person.signals += 1;
+    person.projects.add(signal.projectName);
+    person.themes.set(signal.theme, (person.themes.get(signal.theme) ?? 0) + 1);
+    person.scoreTotal += signal.analystScore;
+    person.maxScore = Math.max(person.maxScore, signal.analystScore);
+    person.totalViews += signal.views;
+    person.latestDate = Math.max(person.latestDate, signal.date);
+    people.set(key, person);
+  }
+
+  return [...people.values()].map((person) => {
+    const themes = [...person.themes.entries()].sort((a, b) => b[1] - a[1]).map(([name]) => name);
+    return {
+      username: person.username,
+      name: person.name,
+      signals: person.signals,
+      projects: [...person.projects],
+      themes,
+      dominantTheme: themes[0] ?? "Consumer & work",
+      averageScore: person.scoreTotal / person.signals,
+      maxScore: person.maxScore,
+      totalViews: person.totalViews,
+      latestDate: person.latestDate,
+    };
+  });
+}
+
+function ThemeWorkbench({
+  signals,
+  latestDate,
+  activeTheme,
+  onThemeChange,
+}: {
+  signals: ThemedSignal[];
+  latestDate: number;
+  activeTheme: ThemeName | "All themes";
+  onThemeChange: (theme: ThemeName | "All themes") => void;
+}) {
+  const [windowSize, setWindowSize] = useState<ThemeWindow>("All");
+  const [minimumScore, setMinimumScore] = useState(0);
+  const [source, setSource] = useState<SourceFilter>("All sources");
+  const [metric, setMetric] = useState<ThemeMetric>("Launches");
+  const [personQuery, setPersonQuery] = useState("");
+  const [selectedPeople, setSelectedPeople] = useState<string[]>([]);
+  const [hoveredWeek, setHoveredWeek] = useState<number | null>(null);
+  const [hoveredPerson, setHoveredPerson] = useState<string | null>(null);
+
+  const windowDays = windowSize === "All" ? null : Number.parseInt(windowSize, 10);
+  const cutoff = windowDays ? latestDate - (windowDays - 1) * DAY : Number.NEGATIVE_INFINITY;
+  const contextSignals = useMemo(() => signals.filter((signal) => {
+    if (signal.date < cutoff) return false;
+    if (activeTheme !== "All themes" && signal.theme !== activeTheme) return false;
+    if (source !== "All sources" && signal.category !== source) return false;
+    return signal.analystScore >= minimumScore;
+  }), [activeTheme, cutoff, minimumScore, signals, source]);
+  const filteredSignals = useMemo(() => selectedPeople.length
+    ? contextSignals.filter((signal) => selectedPeople.includes(signal.username.toLowerCase()))
+    : contextSignals, [contextSignals, selectedPeople]);
+
+  const allPeople = useMemo(() => aggregatePeople(contextSignals)
+    .sort((a, b) => b.signals - a.signals || b.maxScore - a.maxScore || b.totalViews - a.totalViews), [contextSignals]);
+  const selectedPeopleDetails = selectedPeople
+    .map((username) => allPeople.find((person) => person.username.toLowerCase() === username))
+    .filter((person): person is PersonSummary => Boolean(person));
+  const normalizedPersonQuery = personQuery.trim().toLowerCase();
+  const peopleMatches = normalizedPersonQuery
+    ? allPeople.filter((person) => `${person.name} ${person.username} ${person.projects.join(" ")}`.toLowerCase().includes(normalizedPersonQuery)).slice(0, 8)
+    : [];
+
+  const togglePerson = (username: string) => {
+    const key = username.toLowerCase();
+    setSelectedPeople((current) => current.includes(key) ? current.filter((item) => item !== key) : [...current, key]);
+    setPersonQuery("");
+  };
+
+  const filteredPeople = useMemo(() => aggregatePeople(filteredSignals), [filteredSignals]);
+  const uniqueProjects = new Set(filteredSignals.map((signal) => signal.projectName.toLowerCase())).size;
+  const averageConviction = filteredSignals.length
+    ? filteredSignals.reduce((sum, signal) => sum + signal.analystScore, 0) / filteredSignals.length
+    : 0;
+  const totalViews = filteredSignals.reduce((sum, signal) => sum + signal.views, 0);
+
+  const themeBreakdown = themeOrder.map((name) => {
+    const matches = filteredSignals.filter((signal) => signal.theme === name);
+    return {
+      name,
+      count: matches.length,
+      people: new Set(matches.map((signal) => signal.username.toLowerCase())).size,
+      averageScore: matches.length ? matches.reduce((sum, signal) => sum + signal.analystScore, 0) / matches.length : 0,
+    };
+  });
+  const maximumThemeCount = Math.max(...themeBreakdown.map((item) => item.count), 1);
+
+  const firstDate = contextSignals.length ? Math.min(...contextSignals.map((signal) => signal.date)) : latestDate;
+  const firstWeek = startOfUtcWeek(Math.max(firstDate, Number.isFinite(cutoff) ? cutoff : firstDate));
+  const lastWeek = startOfUtcWeek(latestDate);
+  const weeklyData = [] as Array<{
+    date: number;
+    total: number;
+    values: Record<ThemeName, number | null>;
+    counts: Record<ThemeName, number>;
+  }>;
+  for (let date = firstWeek; date <= lastWeek; date += 7 * DAY) {
+    const weekSignals = filteredSignals.filter((signal) => signal.date >= date && signal.date < date + 7 * DAY);
+    const values = {} as Record<ThemeName, number | null>;
+    const counts = {} as Record<ThemeName, number>;
+    for (const name of themeOrder) {
+      const matches = weekSignals.filter((signal) => signal.theme === name);
+      counts[name] = matches.length;
+      values[name] = metric === "Launches"
+        ? matches.length
+        : matches.length ? matches.reduce((sum, signal) => sum + signal.analystScore, 0) / matches.length : null;
+    }
+    weeklyData.push({ date, total: weekSignals.length, values, counts });
+  }
+
+  const visibleThemes = activeTheme === "All themes" ? themeOrder : [activeTheme];
+  const scoreFloor = 40;
+  const maximumChartValue = metric === "Launches"
+    ? Math.max(...weeklyData.flatMap((week) => visibleThemes.map((name) => week.values[name] ?? 0)), 1)
+    : 100;
+  const plotWidth = chartWidth - chartPadding.left - chartPadding.right;
+  const plotHeight = chartHeight - chartPadding.top - chartPadding.bottom;
+  const xFor = (index: number) => chartPadding.left + (weeklyData.length <= 1 ? plotWidth / 2 : (index / (weeklyData.length - 1)) * plotWidth);
+  const yFor = (value: number) => {
+    const minimum = metric === "Launches" ? 0 : scoreFloor;
+    return chartPadding.top + plotHeight - ((Math.max(minimum, value) - minimum) / Math.max(1, maximumChartValue - minimum)) * plotHeight;
+  };
+  const lineFor = (name: ThemeName) => weeklyData.reduce((path, week, index) => {
+    const value = week.values[name];
+    if (value == null) return path;
+    return `${path}${path ? " L" : "M"}${xFor(index).toFixed(1)},${yFor(value).toFixed(1)}`;
+  }, "");
+
+  const handleWeekPointer = (event: React.PointerEvent<SVGRectElement>) => {
+    if (!weeklyData.length) return;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const svgX = ((event.clientX - bounds.left) / bounds.width) * chartWidth;
+    const ratio = Math.max(0, Math.min(1, (svgX - chartPadding.left) / plotWidth));
+    setHoveredWeek(Math.round(ratio * Math.max(0, weeklyData.length - 1)));
+  };
+
+  const scatterPeople = allPeople
+    .filter((person) => person.signals > 0)
+    .sort((a, b) => b.maxScore + Math.log10(b.totalViews + 1) * 2 - (a.maxScore + Math.log10(a.totalViews + 1) * 2))
+    .slice(0, 100);
+  const scatterWidth = 680;
+  const scatterHeight = 274;
+  const scatterPadding = { top: 24, right: 22, bottom: 38, left: 44 };
+  const scatterPlotWidth = scatterWidth - scatterPadding.left - scatterPadding.right;
+  const scatterPlotHeight = scatterHeight - scatterPadding.top - scatterPadding.bottom;
+  const reachValues = scatterPeople.map((person) => Math.log10(person.totalViews + 1));
+  const minimumReach = Math.min(...reachValues, 0);
+  const maximumReach = Math.max(...reachValues, 1);
+  const scatterX = (person: PersonSummary) => scatterPadding.left + ((Math.log10(person.totalViews + 1) - minimumReach) / Math.max(1, maximumReach - minimumReach)) * scatterPlotWidth;
+  const scatterY = (person: PersonSummary) => scatterPadding.top + scatterPlotHeight - ((Math.max(scoreFloor, person.averageScore) - scoreFloor) / (100 - scoreFloor)) * scatterPlotHeight;
+  const hoveredPersonDetails = hoveredPerson ? scatterPeople.find((person) => person.username.toLowerCase() === hoveredPerson) : null;
+  const peopleRows = (normalizedPersonQuery ? peopleMatches : allPeople).slice(0, 12);
+
+  const clearFilters = () => {
+    setWindowSize("All");
+    setMinimumScore(0);
+    setSource("All sources");
+    setSelectedPeople([]);
+    setPersonQuery("");
+    onThemeChange("All themes");
+  };
+
+  const activeFilterCount = Number(windowSize !== "All") + Number(minimumScore > 0) + Number(source !== "All sources")
+    + Number(activeTheme !== "All themes") + selectedPeople.length;
+  const signalsHref = activeTheme === "All themes" ? "/product" : `/product?theme=${encodeURIComponent(activeTheme)}`;
+
+  return <div className={styles.themeWorkbench} data-testid="intelligence-theme-workbench">
+    <section className={styles.themeFilters} aria-label="Theme filters">
+      <div className={styles.filterLead}><SlidersHorizontal aria-hidden="true" /><div><strong>Explore the signal set</strong><span>Every control updates every chart.</span></div></div>
+      <div className={styles.windowTabs} aria-label="Time window">
+        {(["30d", "60d", "90d", "All"] as ThemeWindow[]).map((value) => <button type="button" key={value} className={windowSize === value ? styles.activeFilter : ""} onClick={() => setWindowSize(value)}>{value}</button>)}
+      </div>
+      <label className={styles.sourceSelect}><span>Source</span><select value={source} onChange={(event) => setSource(event.target.value as SourceFilter)}>
+        {(["All sources", "New releases", "Open source", "Product demos", "New founders"] as SourceFilter[]).map((value) => <option key={value}>{value}</option>)}
+      </select><ChevronDown aria-hidden="true" /></label>
+      <label className={styles.scoreFilter}><span>Min conviction <strong>{minimumScore || "Any"}</strong></span><input type="range" min="0" max="95" step="5" value={minimumScore} onChange={(event) => setMinimumScore(Number(event.target.value))} /></label>
+      <div className={styles.peoplePicker}>
+        <label><Users aria-hidden="true" /><span className="sr-only">Filter by builder</span><input value={personQuery} onChange={(event) => setPersonQuery(event.target.value)} placeholder="Filter by builder" autoComplete="off" /></label>
+        {normalizedPersonQuery && <div className={styles.peopleMatches}>
+          {peopleMatches.length ? peopleMatches.map((person) => <button type="button" key={person.username} onClick={() => togglePerson(person.username)}><span><strong>{person.name}</strong><small>@{person.username} · {person.projects.slice(0, 2).join(", ")}</small></span><b>{person.signals}</b></button>) : <p>No builders match.</p>}
+        </div>}
+      </div>
+      <button type="button" className={styles.clearFilters} onClick={clearFilters} disabled={!activeFilterCount}>Reset{activeFilterCount ? ` (${activeFilterCount})` : ""}</button>
+    </section>
+
+    {selectedPeopleDetails.length > 0 && <div className={styles.selectedPeople} aria-label="Selected builders">
+      <span>Builders</span>{selectedPeopleDetails.map((person) => <button type="button" key={person.username} onClick={() => togglePerson(person.username)}>{person.name}<X aria-hidden="true" /></button>)}
+    </div>}
+
+    <section className={styles.themeStats} aria-label="Filtered dataset summary">
+      <div><span>Signals</span><strong>{filteredSignals.length}</strong><small>curated launches</small></div>
+      <div><span>Builders</span><strong>{filteredPeople.length}</strong><small>unique X accounts</small></div>
+      <div><span>Projects</span><strong>{uniqueProjects}</strong><small>deduplicated names</small></div>
+      <div><span>Avg conviction</span><strong>{averageConviction ? Math.round(averageConviction) : "—"}</strong><small>out of 100</small></div>
+      <div><span>Observed reach</span><strong>{compact(totalViews)}</strong><small>post views</small></div>
+    </section>
+
+    <section className={styles.analyticsGrid}>
+      <article className={styles.analyticsCard}>
+        <header className={styles.analyticsHeader}><div><span>Signal velocity</span><h2>{metric === "Launches" ? "Where launch activity is accelerating" : "How conviction is moving"}</h2></div><div className={styles.metricTabs}>{(["Launches", "Conviction"] as ThemeMetric[]).map((value) => <button type="button" key={value} onClick={() => { setMetric(value); setHoveredWeek(null); }} className={metric === value ? styles.activeMetric : ""}>{value}</button>)}</div></header>
+        <div className={styles.themeLegend}>{themeOrder.map((name) => <button type="button" key={name} onClick={() => onThemeChange(activeTheme === name ? "All themes" : name)} className={activeTheme !== "All themes" && activeTheme !== name ? styles.mutedLegend : ""}><i style={{ backgroundColor: themeMeta[name].color }} />{name}</button>)}</div>
+        <div className={styles.velocityChart}>
+          <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} role="img" aria-label={`${metric} by theme and week`}>
+            {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+              const value = metric === "Launches" ? maximumChartValue * (1 - ratio) : 100 - (100 - scoreFloor) * ratio;
+              const y = chartPadding.top + ratio * plotHeight;
+              return <g key={ratio}><line x1={chartPadding.left} x2={chartWidth - chartPadding.right} y1={y} y2={y} className={styles.chartGridLine} /><text x={chartPadding.left - 8} y={y + 3} textAnchor="end">{Math.round(value)}</text></g>;
+            })}
+            {visibleThemes.map((name) => <g key={name}>
+              <path d={lineFor(name)} fill="none" stroke={themeMeta[name].color} strokeWidth={activeTheme === name ? 3 : 2} vectorEffect="non-scaling-stroke" />
+              {weeklyData.map((week, index) => week.values[name] == null ? null : <circle key={week.date} cx={xFor(index)} cy={yFor(week.values[name] ?? 0)} r={activeTheme === name ? 3.5 : 2.5} fill={themeMeta[name].color}><title>{`${formatDate(week.date)} · ${name}: ${metric === "Launches" ? week.values[name] : Math.round(week.values[name] ?? 0)}`}</title></circle>)}
+            </g>)}
+            {hoveredWeek != null && weeklyData[hoveredWeek] && <line x1={xFor(hoveredWeek)} x2={xFor(hoveredWeek)} y1={chartPadding.top} y2={chartPadding.top + plotHeight} className={styles.chartCrosshair} />}
+            <rect x={chartPadding.left} y={chartPadding.top} width={plotWidth} height={plotHeight} fill="transparent" onPointerMove={handleWeekPointer} onPointerLeave={() => setHoveredWeek(null)} />
+            {[0, Math.floor((weeklyData.length - 1) / 2), weeklyData.length - 1].filter((value, index, values) => value >= 0 && values.indexOf(value) === index).map((index) => <text key={index} x={xFor(index)} y={chartHeight - 7} textAnchor={index === 0 ? "start" : index === weeklyData.length - 1 ? "end" : "middle"}>{formatDate(weeklyData[index].date)}</text>)}
+          </svg>
+          {hoveredWeek != null && weeklyData[hoveredWeek] && <div className={styles.chartTooltip} style={{ left: `${(xFor(hoveredWeek) / chartWidth) * 100}%` }}><strong>Week of {formatDate(weeklyData[hoveredWeek].date)}</strong>{visibleThemes.map((name) => <span key={name}><i style={{ backgroundColor: themeMeta[name].color }} />{name}<b>{metric === "Launches" ? weeklyData[hoveredWeek].counts[name] : weeklyData[hoveredWeek].values[name] == null ? "—" : Math.round(weeklyData[hoveredWeek].values[name] ?? 0)}</b></span>)}</div>}
+        </div>
+      </article>
+
+      <article className={styles.analyticsCard}>
+        <header className={styles.analyticsHeader}><div><span>Market composition</span><h2>Share of curated launches</h2></div><Link href={signalsHref}>Open records <ArrowUpRight aria-hidden="true" /></Link></header>
+        <div className={styles.compositionBars}>{themeBreakdown.map((item) => <button type="button" key={item.name} onClick={() => onThemeChange(activeTheme === item.name ? "All themes" : item.name)} className={activeTheme === item.name ? styles.activeComposition : ""}>
+          <span><i style={{ backgroundColor: themeMeta[item.name].color }} />{item.name}<small>{item.people} builders</small></span><strong>{item.count}</strong><em><i style={{ width: `${(item.count / maximumThemeCount) * 100}%`, backgroundColor: themeMeta[item.name].color }} /></em><small>{item.averageScore ? `${Math.round(item.averageScore)} avg conviction` : "No signals"}</small>
+        </button>)}</div>
+      </article>
+
+      <article className={styles.analyticsCard}>
+        <header className={styles.analyticsHeader}><div><span>Builder map</span><h2>Conviction versus observed reach</h2></div><p>Click a point to cross-filter</p></header>
+        <div className={styles.scatterChart}>
+          <svg viewBox={`0 0 ${scatterWidth} ${scatterHeight}`} role="img" aria-label="Builders plotted by observed reach and average conviction">
+            {[50, 65, 80, 95].map((score) => <g key={score}><line x1={scatterPadding.left} x2={scatterWidth - scatterPadding.right} y1={scatterY({ averageScore: score } as PersonSummary)} y2={scatterY({ averageScore: score } as PersonSummary)} className={styles.chartGridLine} /><text x={scatterPadding.left - 8} y={scatterY({ averageScore: score } as PersonSummary) + 3} textAnchor="end">{score}</text></g>)}
+            {scatterPeople.map((person) => {
+              const selected = selectedPeople.includes(person.username.toLowerCase());
+              return <circle key={person.username} cx={scatterX(person)} cy={scatterY(person)} r={Math.min(11, 4 + Math.sqrt(person.signals) * 1.7)} fill={themeMeta[person.dominantTheme].color} fillOpacity={selected ? 1 : .64} stroke={selected ? "#171717" : "rgba(23,23,23,.28)"} strokeWidth={selected ? 2.5 : 1} tabIndex={0} role="button" aria-label={`${person.name}, ${person.signals} signals, ${Math.round(person.averageScore)} conviction`} onMouseEnter={() => setHoveredPerson(person.username.toLowerCase())} onMouseLeave={() => setHoveredPerson(null)} onFocus={() => setHoveredPerson(person.username.toLowerCase())} onBlur={() => setHoveredPerson(null)} onClick={() => togglePerson(person.username)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") togglePerson(person.username); }}><title>{`${person.name} · ${compact(person.totalViews)} views · ${Math.round(person.averageScore)} conviction`}</title></circle>;
+            })}
+            <text x={scatterPadding.left + scatterPlotWidth / 2} y={scatterHeight - 7} textAnchor="middle" className={styles.axisTitle}>Observed post reach →</text>
+          </svg>
+          {hoveredPersonDetails && <div className={styles.scatterTooltip}><i style={{ backgroundColor: themeMeta[hoveredPersonDetails.dominantTheme].color }} /><span><strong>{hoveredPersonDetails.name}</strong><small>@{hoveredPersonDetails.username}</small></span><b>{Math.round(hoveredPersonDetails.averageScore)}<small>conviction</small></b><b>{compact(hoveredPersonDetails.totalViews)}<small>views</small></b></div>}
+        </div>
+      </article>
+
+      <article className={`${styles.analyticsCard} ${styles.peopleCard}`}>
+        <header className={styles.analyticsHeader}><div><span>People index</span><h2>Builders behind the signals</h2></div><strong>{allPeople.length}</strong></header>
+        <label className={styles.peopleTableSearch}><Search aria-hidden="true" /><span className="sr-only">Search builders and projects</span><input value={personQuery} onChange={(event) => setPersonQuery(event.target.value)} placeholder="Search people or projects" /></label>
+        <div className={styles.peopleTable} role="list">
+          {peopleRows.map((person) => <button type="button" role="listitem" key={person.username} onClick={() => togglePerson(person.username)} className={selectedPeople.includes(person.username.toLowerCase()) ? styles.activePersonRow : ""}>
+            <span className={styles.personIdentity}><i style={{ backgroundColor: themeMeta[person.dominantTheme].color }}>{person.name.slice(0, 1).toUpperCase()}</i><span><strong>{person.name}</strong><small>@{person.username}</small></span></span>
+            <span className={styles.personProjects}>{person.projects.slice(0, 2).join(" · ")}</span>
+            <span className={styles.personMetric}><strong>{person.signals}</strong><small>signals</small></span>
+            <span className={styles.personMetric}><strong>{Math.round(person.averageScore)}</strong><small>conviction</small></span>
+            <a href={`https://x.com/${encodeURIComponent(person.username)}`} target="_blank" rel="noreferrer" aria-label={`Open ${person.name} on X`} onClick={(event) => event.stopPropagation()}><ArrowUpRight aria-hidden="true" /></a>
+          </button>)}
+        </div>
+      </article>
+    </section>
+  </div>;
+}
+
+export function ProductIntelligence({
+  signals,
+  from,
+  to,
+  initialView = "Signals",
+  initialTheme = "All themes",
+}: {
+  signals: IntelligenceSignal[];
+  from: string;
+  to: string;
+  initialView?: ViewMode;
+  initialTheme?: ThemeName | "All themes";
+}) {
+  const viewMode = initialView;
   const [savedView, setSavedView] = useState<SavedView>("All signals");
-  const [theme, setTheme] = useState<ThemeName | "All themes">("All themes");
+  const [theme, setTheme] = useState<ThemeName | "All themes">(initialTheme);
   const [sortMode, setSortMode] = useState<SortMode>("Latest");
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState(signals[0]?.id ?? "");
@@ -245,18 +575,7 @@ export function ProductIntelligence({ signals, from, to }: { signals: Intelligen
   const chooseTheme = (name: ThemeName | "All themes") => {
     setTheme(name);
     setSavedView("All signals");
-    setViewMode("Signals");
     setMobileDetailOpen(false);
-  };
-
-  const chooseView = (mode: ViewMode) => {
-    setViewMode(mode);
-    if (mode === "Themes") {
-      setSavedView("All signals");
-      setTheme("All themes");
-      setQuery("");
-      setMobileDetailOpen(false);
-    }
   };
 
   const openSignal = (signalId: string) => {
@@ -284,7 +603,8 @@ export function ProductIntelligence({ signals, from, to }: { signals: Intelligen
           </div>
 
           <nav className={styles.viewTabs} aria-label="Intelligence views">
-            {(["Signals", "Themes"] as ViewMode[]).map((mode) => <button type="button" key={mode} onClick={() => chooseView(mode)} className={viewMode === mode ? styles.activeViewTab : ""}>{mode === "Signals" ? <Table2 aria-hidden="true" /> : <Layers3 aria-hidden="true" />}{mode}</button>)}
+            <Link href="/product" className={viewMode === "Signals" ? styles.activeViewTab : ""}><Table2 aria-hidden="true" />Signals</Link>
+            <Link href="/product/theme" className={viewMode === "Themes" ? styles.activeViewTab : ""}><Layers3 aria-hidden="true" />Themes</Link>
           </nav>
 
           <div className={styles.headerActions}>
@@ -299,7 +619,9 @@ export function ProductIntelligence({ signals, from, to }: { signals: Intelligen
             <section>
               <p className={styles.sidebarLabel}>Saved views</p>
               <div className={styles.sidebarList}>
-                {savedViews.map((item) => <button type="button" key={item.name} onClick={() => { setSavedView(item.name); setTheme("All themes"); setViewMode("Signals"); setMobileDetailOpen(false); }} className={savedView === item.name && theme === "All themes" ? styles.activeSidebarItem : ""}><span>{item.name}</span><small>{item.count}</small></button>)}
+                {savedViews.map((item) => viewMode === "Signals"
+                  ? <button type="button" key={item.name} onClick={() => { setSavedView(item.name); setTheme("All themes"); setMobileDetailOpen(false); }} className={savedView === item.name && theme === "All themes" ? styles.activeSidebarItem : ""}><span>{item.name}</span><small>{item.count}</small></button>
+                  : <Link key={item.name} href="/product"><span>{item.name}</span><small>{item.count}</small></Link>)}
               </div>
             </section>
 
@@ -432,17 +754,7 @@ export function ProductIntelligence({ signals, from, to }: { signals: Intelligen
                   </div>
                 </> : <div className={styles.emptyState}><Search aria-hidden="true" /><strong>No launch selected</strong></div>}
               </section>
-            </div> : <div className={styles.themeGrid} data-testid="intelligence-theme-grid">
-              {themeSummaries.map((summary) => {
-                const maxThemeVolume = Math.max(...summary.volumes, 1);
-                return <article key={summary.name} className={styles.themeCard}>
-                  <header><span><i style={{ backgroundColor: themeMeta[summary.name].color }} />{themeMeta[summary.name].short}</span><button type="button" onClick={() => chooseTheme(summary.name)}>View signals <ArrowUpRight aria-hidden="true" /></button></header>
-                  <div className={styles.themeCardTitle}><div><h2>{summary.name}</h2><p>{deltaLabel(summary.recent, summary.previous)}</p></div><strong>{summary.count}<small>signals</small></strong></div>
-                  <div className={styles.themeBars}>{summary.volumes.map((count, index) => <i key={index} title={`${dateKey(dailyVolumes[index].date)}: ${count}`} style={{ height: `${Math.max(8, (count / maxThemeVolume) * 100)}%`, backgroundColor: themeMeta[summary.name].color }} />)}</div>
-                  <div className={styles.themeLeaders}><span>Highest conviction</span>{summary.leaders.map((signal) => <button type="button" key={signal.id} onClick={() => chooseTheme(summary.name)}><span>{signal.projectName}</span><strong>{Math.round(signal.analystScore)}</strong></button>)}</div>
-                </article>;
-              })}
-            </div>}
+            </div> : <ThemeWorkbench signals={enriched} latestDate={latestDate} activeTheme={theme} onThemeChange={chooseTheme} />}
           </section>
         </div>
       </main>

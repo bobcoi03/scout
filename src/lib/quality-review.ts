@@ -13,6 +13,7 @@ import {
   inspectTargetUrl,
 } from "@/lib/artifact-inspector";
 import { analystConfigured, env } from "@/lib/env";
+import { scoutDataPath } from "@/lib/runtime-paths";
 import { isCryptoPromotionText } from "@/lib/signal-filters";
 
 type ResponsesResult = {
@@ -313,7 +314,7 @@ async function captureFinalistScreenshots(finalists: FeedPost[], inspections: Ma
           await page.goto(targetUrl, { waitUntil: "domcontentloaded", timeout: 15_000 });
           await page.waitForTimeout(1_000);
           const day = new Date(post.publishedAt).toISOString().slice(0, 10);
-          const directory = path.resolve(process.cwd(), "data", "screenshots", day);
+          const directory = scoutDataPath("screenshots", day);
           await fs.mkdir(directory, { recursive: true });
           const screenshotPath = path.join(directory, `${post.id}.jpg`);
           await page.screenshot({ path: screenshotPath, type: "jpeg", quality: 72, fullPage: false });

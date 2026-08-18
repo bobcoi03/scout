@@ -1,18 +1,35 @@
 # Scout
 
-Scout is a deliberately small, local-first feed for finding newly launched products, viral open-source projects, product demos, and new founders directly on X.
+Scout is an evidence-based launch intelligence feed for finding products, open-source projects, demos, and new founders directly on X. It turns a noisy stream into a small daily research brief and an interactive market map.
 
-Scout uses an authenticated X account session through `@the-convocation/twitter-scraper`. Each scan runs broad global launch-query families with no engagement minimum, collects up to 600 deduplicated discovery candidates, then Nano-screens the strongest 300. The investigator deeply checks at most 30 candidates and publishes at most eight daily selections.
+Live demo: [scout.justwrapapi.com](https://scout.justwrapapi.com)
 
-## Stack
+## What it does
 
-- Next.js 16, React 19, TypeScript, and Tailwind CSS 4
-- `@the-convocation/twitter-scraper` for read-only global X search
-- Better SQLite3 for the local feed cache
-- OpenAI nano for broad first-pass screening, plus bounded investigator and final-editor reviews
-- X's standard embed widget for post rendering
+Scout runs broad global launch searches with no engagement minimum, then verifies the strongest candidates against the things they actually built. The goal is precision: surface launches that deserve five minutes from an early-stage investor, including small accounts that would be invisible in a popularity feed.
 
-There is no admin dashboard, application login, worker, Exa, Supabase, or paid X API.
+The production pipeline is deliberately bounded:
+
+1. Fifteen X query families collect launch, demo, open-source, and founder candidates.
+2. Deterministic filters remove replies, reposts, funding news, roundups, crypto promotion, and other obvious noise. Candidates are deduplicated and ranked with a light engagement-and-recency discovery score.
+3. Scout recovers product links and inspects linked sites and repositories. It records availability, page substance, repository metadata, and artifact mismatches.
+4. A low-cost first pass reviews at most 300 candidates with the post and artifact evidence together. Engagement is not treated as product quality.
+5. The strongest 30 receive deeper investigation: author profile, recent posts, product sites, repositories, launch media, source authority, novelty, substance, market potential, differentiation, and credibility.
+6. A final daily editor compares the shortlist and publishes at most eight selections. Weak days can produce fewer.
+
+Completed work is cached by content hash and prompt version in SQLite, so retries and catch-up runs do not repeat paid analysis.
+
+## Architecture
+
+- **Web:** Next.js 16 App Router, React 19, TypeScript, and CSS modules
+- **Discovery:** read-only global X search via `@the-convocation/twitter-scraper`
+- **Curation:** bounded OpenAI Responses API screening and evidence-based investigation
+- **Storage:** Better SQLite3 for raw posts, analyses, investigation packets, verdicts, and scan state; production checkpoints are compressed into a private Vercel Blob
+- **Publishing:** a sanitized JSON snapshot uploaded to Vercel Blob
+- **Hosting:** Vercel serves the read-only app and refreshes the published snapshot every five minutes, with a bundled snapshot as fallback
+- **Scheduling:** Vercel Cron calls a protected server-only route once per day; the worker checks the previous complete UTC day and catches up the preceding six days
+
+The browser never receives the X session, model key, private database, or Blob credentials. Discovery and curation run inside the protected Vercel worker; only the sanitized curated dataset is published publicly.
 
 ## Setup
 
@@ -25,51 +42,64 @@ cp .env.example .env.local
 npm run dev
 ```
 
-In a dedicated X account, open Chrome DevTools → Application → Cookies → `https://x.com`. Copy only the values for `auth_token` and `ct0` into `.env.local`:
+Open `http://127.0.0.1:3000`. The bundled public dataset is enough to explore the web app without any credentials.
+
+### Optional discovery configuration
+
+For live discovery, use a dedicated X account. In Chrome DevTools, open Application → Cookies → `https://x.com` and copy only the values of `auth_token` and `ct0` into `.env.local`.
 
 ```env
 X_SCRAPING_ENABLED=true
 X_AUTH_TOKEN=...
 X_CT0=...
-X_MAX_POSTS_PER_QUERY=30
+OAI_API_KEY=...
 ```
 
-Never commit or share these values. They grant access to that X session.
+Never commit or share these values. They grant access to the corresponding sessions and services. Scout restricts X requests to X/Twitter HTTPS hosts, applies request timeouts, and stops on rate limits.
 
-Open `http://127.0.0.1:3000` and press **Scan X now**. You can also refresh the feed from the terminal with:
+Run one date manually:
 
 ```bash
-npm run scan
+npm run scan -- 2026-08-17
 ```
 
-To run the automatic daily job manually, use:
+Run the idempotent daily catch-up job and publish the sanitized snapshot:
 
 ```bash
 npm run scan:daily
 ```
 
-To compare the production investigator against previously stored results, replay
-the most recent completed scan days:
+`BLOB_READ_WRITE_TOKEN` is required only to publish the snapshot. `SCOUT_DATA_URL` is required only by the hosted web app when reading that snapshot.
+
+### Production ingestion
+
+The production deployment defines `/api/cron/ingest` in `vercel.json` at `01:15 UTC` each day. Vercel sends `CRON_SECRET` as a bearer token, and the route fails closed if it is missing or incorrect. A private Blob store holds the compressed SQLite checkpoint between invocations, while a short-lived `/tmp` copy is used during each run. A private Blob lock and SQLite scan records make duplicate delivery and catch-up runs idempotent.
+
+The route is configured for Vercel Pro Fluid Compute because a full evidence pass can take more than ten minutes. Local `npm run scan:daily` remains available for development and emergency recovery, but it is not the production scheduler.
+
+## Data model
+
+The current pipeline stores X posts, artifact inspections, first-pass analyses, investigation packets, investigator verdicts, and scan runs. Public rows contain the builder name and X username, which the Themes workspace aggregates into a filterable people index.
+
+Rich profile evidence such as biography, website, follower counts, recent posts, and repository metadata is retained in private investigation packets. It is not included in the public snapshot by default.
+
+## Commands
 
 ```bash
-npm run compare:investigator -- --days 3
+npm run dev             # start the web app
+npm run scan -- DATE    # discover and curate one UTC day
+npm run scan:daily      # catch up missed days and publish the snapshot
+npm run export:public   # regenerate the sanitized bundled dataset
+npm run check:secrets   # scan tracked files before publishing
+npm run preflight       # secrets, lint, tests, and production build
 ```
 
-The comparison is written to `outputs/`. Packets and verdicts remain separately
-versioned in SQLite. Add `--force` only when intentionally paying to rebuild and
-rejudge already cached results. `--refresh-evidence` refreshes
-profiles/sites/repositories while reusing paid model verdicts.
+## Safety
 
-The daily task scans the previous complete UTC day and checks the preceding six
-days for anything missed while the machine was asleep or offline. Completed days
-for the current analyst version are skipped, so catch-up runs do not repeat paid
-analysis. Days completed before the investigator production cutover keep their
-legacy curation; only newly completed investigator scans use the new verdicts.
-When Vercel Blob is configured, the same job exports and publishes the curated
-read-only dataset used by the hosted application.
+Scout reads public searches and posts. It does not post, like, follow, repost, send messages, rotate accounts, use proxies, or bypass X challenges. The frontend integration is unofficial and may change; use modest scan sizes and comply with applicable platform terms.
 
-## Safety and limits
+Local `.env` files, SQLite databases, screenshots, investigation media, cached repositories/sites, logs, and Vercel project metadata are ignored by Git. The secret preflight scans both the publishable working tree and every reachable Git-history blob. See [SECURITY.md](SECURITY.md) before changing repository visibility.
 
-Scout only reads searches and public posts. It does not post, like, follow, repost, send messages, rotate accounts, use proxies, or bypass X challenges. Requests are restricted to X/Twitter HTTPS hosts, have a 25-second timeout, and stop immediately on rate limiting.
+## License
 
-The frontend API is undocumented and can change without notice. Use a dedicated non-personal account and moderate scan sizes.
+MIT
