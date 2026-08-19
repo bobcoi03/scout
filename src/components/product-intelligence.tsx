@@ -20,7 +20,9 @@ import Script from "next/script";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import styles from "@/app/product/product.module.css";
+import { RepositoryLink } from "@/components/repository-link";
 import { ScoutBrand } from "@/components/scout-brand";
+import { displayProjectName } from "@/lib/project-name";
 
 export type IntelligenceSignal = {
   id: string;
@@ -192,7 +194,7 @@ function aggregatePeople(signals: ThemedSignal[]): PersonSummary[] {
       latestDate: 0,
     };
     person.signals += 1;
-    person.projects.add(signal.projectName);
+    person.projects.add(displayProjectName(signal.projectName));
     person.themes.set(signal.theme, (person.themes.get(signal.theme) ?? 0) + 1);
     person.scoreTotal += signal.analystScore;
     person.maxScore = Math.max(person.maxScore, signal.analystScore);
@@ -514,7 +516,7 @@ export function ProductIntelligence({
     ? b.date - a.date || b.analystScore - a.analystScore
     : b.analystScore - a.analystScore || b.date - a.date);
   const searchResults = normalizedQuery
-    ? sorted.filter((signal) => `${signal.projectName} ${signal.username} ${signal.builderName} ${signal.description ?? ""} ${signal.postText}`.toLowerCase().includes(normalizedQuery))
+    ? sorted.filter((signal) => `${displayProjectName(signal.projectName)} ${signal.username} ${signal.builderName} ${signal.description ?? ""} ${signal.postText}`.toLowerCase().includes(normalizedQuery))
     : [];
   const selectedSignal = sorted.find((signal) => signal.id === selectedId) ?? sorted[0] ?? null;
 
@@ -611,6 +613,7 @@ export function ProductIntelligence({
             <span className={styles.liveStatus}>Live data</span>
             <span>{formatRange(from, to)}</span>
             <Link href="/table">Dataset <ArrowUpRight aria-hidden="true" /></Link>
+            <RepositoryLink className={styles.repositoryLink} />
           </div>
         </header>
 
@@ -673,7 +676,7 @@ export function ProductIntelligence({
                   {normalizedQuery && <div id="signal-search-results" className={styles.searchDropdown} role="listbox" aria-label="Matching launches">
                     <div className={styles.searchDropdownHeader}><span>Matching launches</span><strong>{searchResults.length}</strong></div>
                     {searchResults.length ? searchResults.slice(0, 50).map((signal) => <button type="button" role="option" aria-selected={selectedSignal?.id === signal.id} key={signal.id} onClick={() => jumpToSignal(signal.id)}>
-                      <span><strong>{signal.projectName}</strong><small>@{signal.username} · {signal.theme}</small><em>{signal.description ?? signal.postText}</em></span>
+                      <span><strong>{displayProjectName(signal.projectName)}</strong><small>@{signal.username} · {signal.theme}</small><em>{signal.description ?? signal.postText}</em></span>
                       <b>{Math.round(signal.analystScore)}</b>
                     </button>) : <p className={styles.noSearchResults}>No launches match “{query.trim()}”.</p>}
                   </div>}
@@ -697,7 +700,7 @@ export function ProductIntelligence({
                     data-testid="intelligence-signal-row"
                   >
                     <span className={styles.inboxRowTop}><span><i style={{ backgroundColor: themeMeta[signal.theme].color }} />{signal.theme}</span><strong>{Math.round(signal.analystScore)}</strong></span>
-                    <span className={styles.inboxProject}>{signal.projectName}</span>
+                    <span className={styles.inboxProject}>{displayProjectName(signal.projectName)}</span>
                     <span className={styles.inboxDescription}>{signal.description ?? "No launch description is available for this record."}</span>
                     <span className={styles.inboxMeta}><span>@{signal.username}</span><span>{formatLocalPostDate(signal.date, hasHydrated)}</span>{hasVideo(signal) && <span className={styles.videoBadge}>Video</span>}<small>{String(index + 1).padStart(2, "0")}</small></span>
                   </button>) : <div className={styles.emptyState}><Search aria-hidden="true" /><strong>No launches in this view</strong><span>Choose a broader saved view or theme.</span></div>}
@@ -708,12 +711,12 @@ export function ProductIntelligence({
                 {selectedSignal ? <>
                   <div className={styles.mobileDetailBar}>
                     <button type="button" onClick={() => setMobileDetailOpen(false)} aria-label="Back to launch inbox"><ArrowLeft aria-hidden="true" /></button>
-                    <div><strong>{selectedSignal.projectName}</strong><span>@{selectedSignal.username}</span></div>
+                    <div><strong>{displayProjectName(selectedSignal.projectName)}</strong><span>@{selectedSignal.username}</span></div>
                     <a href={selectedSignal.discoveryUrl} target="_blank" rel="noreferrer" aria-label="Open source post on X"><ExternalLink aria-hidden="true" /></a>
                   </div>
                   <div className={styles.evidenceHeader}>
                     <div className={styles.evidenceEyebrow}><span><i style={{ backgroundColor: themeMeta[selectedSignal.theme].color }} />{selectedSignal.theme}</span><span>{formatDate(selectedSignal.date, true)}</span></div>
-                    <div className={styles.evidenceTitle}><h2>{selectedSignal.projectName}</h2><span className={styles.score}><strong>{Math.round(selectedSignal.analystScore)}</strong><small>/ 100</small></span></div>
+                    <div className={styles.evidenceTitle}><h2>{displayProjectName(selectedSignal.projectName)}</h2><span className={styles.score}><strong>{Math.round(selectedSignal.analystScore)}</strong><small>/ 100</small></span></div>
                     <p className={styles.evidenceDescription}>{selectedSignal.description ?? "No launch description is available for this record."}</p>
                     <div className={styles.evidenceBuilder}><span>Builder</span><div><strong>{selectedSignal.builderName}</strong><a href={`https://x.com/${encodeURIComponent(selectedSignal.username)}`} target="_blank" rel="noreferrer">@{selectedSignal.username}<ExternalLink aria-hidden="true" /></a></div></div>
                     <div className={styles.recordLinks}>

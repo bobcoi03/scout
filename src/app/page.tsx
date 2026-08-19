@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 
+import { RepositoryLink } from "@/components/repository-link";
 import styles from "./home.module.css";
 
 export const metadata: Metadata = {
@@ -20,6 +21,7 @@ export default function HomePage() {
 
       <nav aria-label="Primary navigation">
         <Link href="/table" className={styles.datasetLink}>Dataset</Link>
+        <RepositoryLink className={styles.repositoryLink} />
       </nav>
     </header>
 

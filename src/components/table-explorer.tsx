@@ -3,6 +3,8 @@
 import { ExternalLink } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { displayProjectName } from "@/lib/project-name";
+
 type TableRow = {
   date: number;
   username: string;
@@ -51,7 +53,7 @@ export function TableExplorer({ from, to }: { from: string; to: string }) {
       <tbody>{rows.map((row) => <tr key={row.discoveryUrl} className="h-[82px] align-top odd:bg-[#f7f4ee] even:bg-[#f0ede7] hover:bg-[#e8e4dd] [&>td]:border-b [&>td]:border-r [&>td]:border-[#181818]/10 [&>td]:px-3 [&>td]:py-2.5 [&>td:last-child]:border-r-0">
         <td className="sticky left-0 z-10 whitespace-nowrap bg-inherit font-mono text-[10px] text-[#181818]/50">{displayDate(row.date)}</td>
         <td className="sticky left-40 z-10 bg-inherit shadow-[5px_0_10px_-8px_rgba(24,24,24,0.8)]"><a href={`https://x.com/${row.username}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-medium text-[#e42313] hover:text-[#181818]">@{row.username}<ExternalLink className="h-3 w-3 shrink-0" /></a></td>
-        <td className="font-medium capitalize"><div className="data-cell-scroll max-h-[60px] overflow-y-auto pr-1">{row.projectName}</div></td>
+        <td className="font-medium capitalize"><div className="data-cell-scroll max-h-[60px] overflow-y-auto pr-1">{displayProjectName(row.projectName)}</div></td>
         <td className="text-[#181818]/70"><div title={row.description ?? undefined} className="data-cell-scroll max-h-[60px] overflow-y-auto pr-1">{row.description ?? "—"}</div></td>
         <td className="break-all"><div className="data-cell-scroll max-h-[60px] overflow-y-auto pr-1">{row.projectUrl ? <a href={row.projectUrl} target="_blank" rel="noreferrer" className="text-[#e42313] hover:text-[#181818]">{row.projectUrl}</a> : <span className="text-[#181818]/30">—</span>}</div></td>
         <td className="break-all"><div className="data-cell-scroll max-h-[60px] overflow-y-auto pr-1"><a href={row.discoveryUrl} target="_blank" rel="noreferrer" className="text-[#e42313] hover:text-[#181818]">{row.discoveryUrl}</a></div></td>

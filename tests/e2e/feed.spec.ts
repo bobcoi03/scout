@@ -5,6 +5,7 @@ test("renders the simple Scout landing page", async ({ page }) => {
   await expect(page.getByRole("heading", { name: /A curated feed of launches, startups & side projects from X/ })).toBeVisible();
   await expect(page.getByText(/Stop doomscrolling.*Index Ventures/)).toBeVisible();
   await expect(page.getByRole("link", { name: "Open the feed" })).toHaveAttribute("href", "/product");
+  await expect(page.getByRole("link", { name: "Scout GitHub repository" })).toHaveAttribute("href", "https://github.com/bobcoi03/scout");
 });
 
 test("removed operational routes no longer exist", async ({ page }) => {
@@ -22,6 +23,7 @@ test("themes use a routed, cross-filterable analytics workspace", async ({ page 
 
   await expect(page).toHaveURL(/\/product\/theme$/);
   await expect(page.getByTestId("intelligence-theme-workbench")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Scout GitHub repository" })).toHaveAttribute("href", "https://github.com/bobcoi03/scout");
   await expect(page.getByRole("img", { name: "Launches by theme and week" })).toBeVisible();
 
   await page.getByPlaceholder("Filter by builder").fill("Claude");
